@@ -61,16 +61,18 @@ export default function ServiceCenterHome() {
       navigate("/userlogin");
       return;
     }
-    const loginid = localStorage.getItem("loginid");
-    fetch(`${API}/getScDetailsByLoginid?loginid=` + loginid)
-      .then((resp) => resp.json())
-      .then((jsonData) => {
-        setData(jsonData || {});
-        if (jsonData && jsonData.servicecenterid != null) {
-          localStorage.setItem("scid", jsonData.servicecenterid);
-        }
-      })
-      .catch((e) => console.log(e));
+    const loginid = localStorage.getItem("loginid") || localStorage.getItem("userid");
+    if (loginid) {
+      fetch(`${API}/getScDetailsByLoginid?loginid=` + loginid)
+        .then((resp) => resp.json())
+        .then((jsonData) => {
+          setData(jsonData || {});
+          if (jsonData && jsonData.servicecenterid != null) {
+            localStorage.setItem("scid", jsonData.servicecenterid);
+          }
+        })
+        .catch((e) => console.log(e));
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

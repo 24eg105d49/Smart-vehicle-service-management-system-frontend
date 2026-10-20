@@ -81,23 +81,39 @@ export default function CustomerHomePage() {
       navigate("/userlogin");
       return;
     }
-    const loginid = JSON.parse(localStorage.getItem("loginid"));
-    fetch(`${API}/getCustomerdetails?loginid=` + loginid)
-      .then((resp) => resp.json())
-      .then((jsonData) => {
-        setData(jsonData || {});
-        if (jsonData && jsonData.customerid != null) {
-          localStorage.setItem("custid", JSON.stringify(jsonData.customerid));
-        }
-      })
-      .catch((e) => console.log(e));
+    const storedLoginId = localStorage.getItem("loginid");
+    const storedUserId = localStorage.getItem("userid") || "";
+    let loginid = null;
+    try {
+      loginid = storedLoginId ? JSON.parse(storedLoginId) : null;
+    } catch (e) {
+      loginid = storedLoginId;
+    }
+    const queryParam = loginid != null ? loginid : storedUserId;
+    if (queryParam) {
+      fetch(`${API}/getCustomerdetails?loginid=` + queryParam)
+        .then((resp) => (resp.ok ? resp.json() : null))
+        .then((jsonData) => {
+          if (jsonData && typeof jsonData === "object") {
+            setData(jsonData);
+            if (jsonData.customerid != null) {
+              localStorage.setItem("custid", JSON.stringify(jsonData.customerid));
+            }
+          }
+        })
+        .catch((e) => console.log(e));
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const name =
-    [data.firstname, data.lastname].filter(Boolean).join(" ") || "there";
-  const initials =
-    `${(data.firstname || "V")[0]}${(data.lastname || "")[0] || ""}`.toUpperCase();
+  const storedUser = localStorage.getItem("userid") || "";
+  const fullName = [data.firstname, data.lastname].filter(Boolean).join(" ");
+  const name = fullName || storedUser || "Customer";
+  const initials = (
+    fullName
+      ? `${(data.firstname || "C")[0]}${(data.lastname || "")[0] || ""}`
+      : (storedUser ? storedUser.slice(0, 2) : "CU")
+  ).toUpperCase();
 
   const user = {
     name,
@@ -105,6 +121,7 @@ export default function CustomerHomePage() {
     role: "Customer",
     profileTo: "/customerhome/changePwd",
   };
+
 
   return (
     <>

@@ -23,14 +23,31 @@ export default function CreatePackages() {
   const scid = Number(localStorage.getItem("scid"));
 
   const load = useCallback(async () => {
-    if (!scid) {
+    let activeScid = Number(localStorage.getItem("scid"));
+    if (!activeScid) {
+      const loginid = localStorage.getItem("loginid") || localStorage.getItem("userid");
+      if (loginid) {
+        try {
+          const resp = await fetch(`${API}/getScDetailsByLoginid?loginid=` + loginid);
+          if (resp.ok) {
+            const data = await resp.json();
+            if (data && data.servicecenterid) {
+              activeScid = Number(data.servicecenterid);
+              localStorage.setItem("scid", data.servicecenterid);
+            }
+          }
+        } catch (err) {}
+      }
+    }
+
+    if (!activeScid) {
       setBanner({ kind: "danger", text: "Could not identify your service centre." });
       setLoading(false);
       return;
     }
     try {
       const [pk, fs] = await Promise.all([
-        fetch(`${API}/getPackageByScId?scid=${scid}`).then((r) => r.json()),
+        fetch(`${API}/getPackageByScId?scid=${activeScid}`).then((r) => r.json()),
         fetch(`${API}/getfacilities`).then((r) => r.json()),
       ]);
       setPackages(Array.isArray(pk) ? pk : []);
@@ -40,7 +57,7 @@ export default function CreatePackages() {
     } finally {
       setLoading(false);
     }
-  }, [scid]);
+  }, []);
 
   useEffect(() => {
     load();
@@ -93,11 +110,12 @@ export default function CreatePackages() {
       return;
     }
 
+    const activeScid = scid || Number(localStorage.getItem("scid"));
     const payload = {
       packagedetailsid: Number(form.packagedetailsid) || 0,
       packagename: name,
       cost,
-      servicecenterid: scid,
+      servicecenterid: activeScid,
       facilityids: selected,
     };
 

@@ -310,20 +310,28 @@ export default function CustRegistration() {
   };
 
   const getAreas = (id) => {
+    if (!id || id === "Select One" || Number(id) <= 0) {
+      setAllarea([]);
+      return;
+    }
     fetch(`${API}/getAreaByCityId?id=` + id)
-      .then((resp) => resp.json())
-      .then((a) => setAllarea(a));
+      .then((resp) => (resp.ok ? resp.json() : []))
+      .then((a) => setAllarea(Array.isArray(a) ? a : []))
+      .catch(() => setAllarea([]));
   };
 
   useEffect(() => {
     fetch(`${API}/getCities`)
-      .then((resp) => resp.json())
-      .then((c) => setAllcities(c));
+      .then((resp) => (resp.ok ? resp.json() : []))
+      .then((c) => setAllcities(Array.isArray(c) ? c : []))
+      .catch(() => setAllcities([]));
 
     fetch(`${API}/getQuestions`)
-      .then((resp) => resp.json())
-      .then((q) => setAllques(q));
+      .then((resp) => (resp.ok ? resp.json() : []))
+      .then((q) => setAllques(Array.isArray(q) ? q : []))
+      .catch(() => setAllques([]));
   }, []);
+
 
   return (
     <div

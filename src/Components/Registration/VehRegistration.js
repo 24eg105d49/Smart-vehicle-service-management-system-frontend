@@ -65,10 +65,9 @@ export default function VehRegistration() {
     let valid = false;
     switch (nm) {
       case "brandid":
-        console.log(brandid);
-        const exp1 = /^[0]$/;
-        if (!exp1.test(val)) {
-          error = "Invalid Choice";
+        if (!val || Number(val) <= 0 || val === "Select One") {
+          error = "Please select a valid brand";
+          valid = false;
         } else {
           error = "";
           valid = true;
@@ -76,9 +75,9 @@ export default function VehRegistration() {
         break;
 
       case "running":
-        const exp5 = /^[0-9]{1,}$/;
-        if (!exp5.test(val)) {
-          error = "Invalid Input";
+        if (val && !/^[0-9]+$/.test(String(val).trim())) {
+          error = "Invalid distance";
+          valid = false;
         } else {
           error = "";
           valid = true;
@@ -86,9 +85,11 @@ export default function VehRegistration() {
         break;
 
       case "regyear":
-        const exp2 = /^[0-9]{4}$/;
-        if (!exp2.test(val)) {
-          error = "Write Valid Year";
+        const year = Number(val);
+        const currentYear = new Date().getFullYear();
+        if (!/^[0-9]{4}$/.test(String(val).trim()) || year < 1980 || year > currentYear + 1) {
+          error = `Enter a year between 1980 and ${currentYear + 1}`;
+          valid = false;
         } else {
           error = "";
           valid = true;
@@ -96,81 +97,103 @@ export default function VehRegistration() {
         break;
 
       case "model":
-        error = "";
-        valid = true;
+        if (!val || String(val).trim().length < 2) {
+          error = "Enter model name (min 2 characters)";
+          valid = false;
+        } else {
+          error = "";
+          valid = true;
+        }
         break;
 
       case "fueltype":
-        // String has no .equals() in JS — the old chain threw
-        // `val.equals is not a function` the moment a fuel type was picked.
-        if (val === "Petrol" || val === "Diesel" || val === "CNG") {
+        if (val === "Petrol" || val === "Diesel" || val === "CNG" || val === "Electric") {
           error = "";
           valid = true;
         } else {
-          error = "Please Select Valid Options";
+          error = "Please select a valid fuel type";
           valid = false;
         }
         break;
 
       case "number":
-        const exp6 = /^[A-Z]{2}[0-9]{2}[A-Z]{2}[0-9]{4}$/;
-        if (!exp6.test(val)) {
-          error = "Write in Capital Letters with no space";
+        const cleaned = String(val).replace(/[\s-]/g, "").toUpperCase();
+        // Standard Indian vehicle plate: 2 letters, 1-2 digits, 0-3 letters, 4 digits (or 4-12 alphanumeric)
+        const expPlate = /^[A-Z]{2}[0-9]{1,2}[A-Z]{0,3}[0-9]{4}$/;
+        if (!expPlate.test(cleaned) && !/^[A-Z0-9]{5,12}$/.test(cleaned)) {
+          error = "Enter a valid vehicle number (e.g. MH12AB1234)";
+          valid = false;
         } else {
           error = "";
           valid = true;
         }
         break;
+
+      default:
+        valid = true;
     }
 
-    //console.log(val + "," + error + "," + valid);
     dispatch({ type: "update", fld: nm, value: val, error, valid, touched });
   };
 
-  const senddata = (e) => {
+  const senddata = async (e) => {
     e.preventDefault();
 
-    // Submit guard: brand starts as 0 and fueltype has no selection.
-    const missing = [];
-    const required = [
-      ["number", "Vehicle number"],
-      ["model", "Model"],
-      ["regyear", "Registration year"],
-      ["running", "Current running (km)"],
-    ];
-    required.forEach(([fld, label]) => {
-      const v = get(info[fld]);
-      if (v === null || v === undefined || String(v).trim() === "") {
-        missing.push(label);
+    // Dynamically retrieve customerid from state, or localStorage
+    let customerid = Number(get(info.customerid) || 0);
+    if (!customerid) {
+      const storedCust = localStorage.getItem("custid");
+      if (storedCust) {
+        try { customerid = Number(JSON.parse(storedCust)); } catch (err) { customerid = Number(storedCust); }
       }
-    });
-    if (!Number(get(info.brandid) || 0)) missing.push("Brand");
-    if (!String(get(info.fueltype) || "").trim()) missing.push("Fuel type");
+    }
 
-    const invalid = ["number", "model", "regyear", "running"].filter(
-      (fld) => !isValid(info[fld])
-    );
+    // If still missing, try to resolve via loginid
+    if (!customerid) {
+      const storedLogin = localStorage.getItem("loginid") || localStorage.getItem("userid");
+      if (storedLogin) {
+        let lid = null;
+        try { lid = JSON.parse(storedLogin); } catch (err) { lid = storedLogin; }
+        try {
+          const resp = await fetch(`${API}/getCustomerdetails?loginid=` + (lid || storedLogin));
+          if (resp.ok) {
+            const cust = await resp.json();
+            if (cust && cust.customerid) {
+              customerid = cust.customerid;
+              localStorage.setItem("custid", JSON.stringify(cust.customerid));
+            }
+          }
+        } catch (err) {}
+      }
+    }
 
-    const customerid = Number(get(info.customerid) || 0);
-    if (!customerid) missing.push("your customer account");
+    const missing = [];
+    const numVal = String(get(info.number) || "").replace(/[\s-]/g, "").toUpperCase();
+    const modelVal = String(get(info.model) || "").trim();
+    const fuelVal = String(get(info.fueltype) || "").trim();
+    const yearVal = Number(get(info.regyear)) || 0;
+    const brandVal = Number(get(info.brandid)) || 0;
 
-    if (missing.length || invalid.length) {
-      const parts = [];
-      if (missing.length) parts.push("fill in: " + missing.join(", "));
-      if (invalid.length) parts.push("correct the highlighted fields");
-      setFormError("Please " + parts.join(", and ") + ".");
+    if (!numVal) missing.push("Vehicle number");
+    if (!modelVal) missing.push("Model");
+    if (!yearVal) missing.push("Registration year");
+    if (!brandVal) missing.push("Brand");
+    if (!fuelVal || fuelVal === "Select One") missing.push("Fuel type");
+    if (!customerid) missing.push("Customer account (please sign in again)");
+
+    if (missing.length) {
+      setFormError("Please fill in: " + missing.join(", ") + ".");
       return;
     }
+
     setFormError("");
 
-    // Flatten deliberately. State holds {value,error,valid,touched} wrappers
-    // while the backend DTO expects plain values.
     const payload = {
-      number: String(get(info.number)).trim().toUpperCase(),
-      model: String(get(info.model)).trim(),
-      fueltype: String(get(info.fueltype)).trim(),
-      regyear: Number(get(info.regyear)) || 0,
-      brandid: Number(get(info.brandid)) || 0,
+      number: numVal,
+      model: modelVal,
+      fueltype: fuelVal,
+      regyear: yearVal,
+      brandid: brandVal,
       customerid: customerid,
     };
 
@@ -192,16 +215,14 @@ export default function VehRegistration() {
           }
         }
 
-        // A failed save used to return HTTP 200 with an empty body, which
-        // this check treated as success. Require a real vehicle id back.
         if (status === 200 && body && body.vehicleid) {
           setFormError("");
-          alert("Vehicle Information Added.");
-          navigate("/customerhome");
+          alert("Vehicle successfully registered!");
+          navigate("/customerhome/vehdetails");
         } else {
           setFormError(
             (body && body.message) ||
-              "Registration failed. Please check the form and try again."
+              "Registration failed. Please check the details and try again."
           );
         }
       })
@@ -212,9 +233,34 @@ export default function VehRegistration() {
 
   useEffect(() => {
     fetch(`${API}/getBrands`)
-      .then((resp) => resp.json())
-      .then((c) => setAllbrands(c));
+      .then((resp) => (resp.ok ? resp.json() : []))
+      .then((c) => setAllbrands(Array.isArray(c) ? c : []))
+      .catch(() => setAllbrands([]));
+
+    // Resolve and sync customerid
+    const storedCust = localStorage.getItem("custid");
+    if (storedCust) {
+      let cid = null;
+      try { cid = JSON.parse(storedCust); } catch (e) { cid = storedCust; }
+      if (cid) dispatch({ type: "update", fld: "customerid", value: Number(cid), valid: true });
+    } else {
+      const storedLogin = localStorage.getItem("loginid") || localStorage.getItem("userid");
+      if (storedLogin) {
+        let lid = null;
+        try { lid = JSON.parse(storedLogin); } catch (e) { lid = storedLogin; }
+        fetch(`${API}/getCustomerdetails?loginid=` + (lid || storedLogin))
+          .then((r) => (r.ok ? r.json() : null))
+          .then((cust) => {
+            if (cust && cust.customerid) {
+              localStorage.setItem("custid", JSON.stringify(cust.customerid));
+              dispatch({ type: "update", fld: "customerid", value: cust.customerid, valid: true });
+            }
+          })
+          .catch(() => {});
+      }
+    }
   }, []);
+
 
   return (
     <div style={{ backgroundColor: "white" }}>
@@ -237,13 +283,10 @@ export default function VehRegistration() {
                     className="form-group"
                     id="brandid"
                     name="brandid"
-                    onChange={(e) =>
-                      dispatch({
-                        type: "update",
-                        fld: "brandid",
-                        value: e.target.value,
-                      })
-                    }
+                    onChange={(e) => {
+                      validate("brandid", e.target.value);
+                    }}
+
                   >
                     <option>Select One</option>
                     {allbrands.map((b) => {
@@ -338,12 +381,9 @@ export default function VehRegistration() {
                     id="fueltype"
                     name="fueltype"
                     onChange={(e) => {
-                      dispatch({
-                        type: "update",
-                        fld: "fueltype",
-                        value: e.target.value,
-                      });
+                      validate("fueltype", e.target.value);
                     }}
+
                   >
                     <option>Select One</option>
                     {fueltypes.map((f) => {

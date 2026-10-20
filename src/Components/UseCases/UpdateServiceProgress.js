@@ -58,14 +58,13 @@ export default function UpdateServiceProgress() {
           console.log("jsonData-", transactionData);
 
           const reqOptions = {
-            mode: "no-cors",
             method: "POST",
             headers: { "content-type": "application/json" },
             body: JSON.stringify({
               status: true,
               servicerequestid:
-                transactionData?.serviceprogres.servicerequestid
-                  .servicerequestid,
+                transactionData?.serviceprogres?.servicerequestid
+                  ?.servicerequestid,
               transactionid: transactionData?.transactionid,
             }),
           };

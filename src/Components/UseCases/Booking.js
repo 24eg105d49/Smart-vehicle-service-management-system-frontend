@@ -25,15 +25,19 @@ export default function Booking() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    const sids = Object.values(data).map((obj) => obj.servicecenterid);
+    const sids = Array.isArray(data) ? data.map((obj) => obj.servicecenterid) : [];
     setServ(sids);
   }, [data]);
 
   useEffect(() => {
     const fetchData = async () => {
+      if (!serv || serv.length === 0) {
+        setRatings([]);
+        return;
+      }
       const promises = serv.map((id) => {
         const url = `${API}/getRating?scid=` + id;
-        return fetch(url).then((resp) => resp.json());
+        return fetch(url).then((resp) => resp.json()).catch(() => 0);
       });
       const data = await Promise.all(promises);
       setRatings(data);
@@ -41,7 +45,12 @@ export default function Booking() {
     fetchData();
   }, [serv]);
 
-  const setValues = () => {
+  const setValues = (e) => {
+    if (e) e.preventDefault();
+    if (!pkgid || pkgid === "Select One") {
+      alert("Please select a package first.");
+      return;
+    }
     localStorage.setItem("scid", JSON.stringify(scid));
     localStorage.setItem("pkgid", pkgid);
     localStorage.setItem("bid", brandid);
@@ -50,6 +59,10 @@ export default function Booking() {
 
   const sendData = (e) => {
     e.preventDefault();
+    if (!brandid || brandid === "Select One" || !areaid || areaid === "Select One") {
+      setScmsg("Please select City, Area, and Brand.");
+      return;
+    }
     var url =
       `${API}/getScByBrandArea?bid=` +
       brandid +
@@ -59,12 +72,14 @@ export default function Booking() {
     fetch(url)
       .then((resp) => resp.json())
       .then((jsonData) => {
-        if (jsonData.length === 0) {
+        const list = Array.isArray(jsonData) ? jsonData : [];
+        if (list.length === 0) {
           setScmsg("No Service Centers Found");
+          setData([]);
           setSc_res(false);
           setPk_res(false);
         } else {
-          setData(jsonData);
+          setData(list);
           setSc_res(true);
           setPk_res(false);
           setScmsg("");
@@ -72,42 +87,60 @@ export default function Booking() {
       })
       .catch((e) => {
         console.log(e);
+        setData([]);
+        setScmsg("Error loading service centers.");
       });
   };
 
-  const getAreas = () => {
+  useEffect(() => {
+    if (!cityid || cityid === "Select One") {
+      setAllarea([]);
+      setAreaid(0);
+      return;
+    }
     fetch(`${API}/getAreaByCityId?id=` + cityid)
       .then((resp) => resp.json())
-      .then((a) => setAllarea(a));
-  };
+      .then((a) => setAllarea(Array.isArray(a) ? a : []))
+      .catch(() => setAllarea([]));
+  }, [cityid]);
 
   useEffect(() => {
     fetch(`${API}/getBrands`)
       .then((resp) => resp.json())
-      .then((c) => setAllbrands(c));
+      .then((c) => setAllbrands(Array.isArray(c) ? c : []))
+      .catch(() => setAllbrands([]));
 
     fetch(`${API}/getCities`)
       .then((resp) => resp.json())
-      .then((c) => setAllcities(c));
+      .then((c) => setAllcities(Array.isArray(c) ? c : []))
+      .catch(() => setAllcities([]));
   }, []);
 
-  const getPackages = () => {
-    fetch(`${API}/getPackageByScId?scid=` + scid)
+  const getPackages = (selectedScId) => {
+    const centerId = selectedScId || scid;
+    if (!centerId) return;
+    setScid(centerId);
+    fetch(`${API}/getPackageByScId?scid=` + centerId)
       .then((resp) => resp.json())
       .then((jsonData) => {
-        if (jsonData.length === 0) {
+        const list = Array.isArray(jsonData) ? jsonData : [];
+        if (list.length === 0) {
           setPkgmsg("No Packages Found");
+          setPkgs([]);
           setSc_res(false);
           setPk_res(false);
         } else {
-          setPkgs(jsonData);
+          setPkgs(list);
           setSc_res(false);
           setPk_res(true);
           setPkgmsg("");
-          console.log(jsonData);
         }
       })
-      .catch((e) => console.log(e));
+      .catch((e) => {
+        console.log(e);
+        setPkgs([]);
+        setPkgmsg("Error loading packages");
+      });
   };
 
   return (
@@ -126,7 +159,6 @@ export default function Booking() {
                     onChange={(e) => {
                       setCityid(e.target.value);
                     }}
-                    onClick={getAreas}
                   >
                     <option>Select One</option>
                     {allcities.map((city) => {
@@ -235,17 +267,13 @@ export default function Booking() {
                         ))}
                       </td> */}
                       <td value={b.servicecenterid}>
-                        <Link
-                          to="#"
-                          className="nav-link"
-                          onClickCapture={(e) => {
-                            setScid(b.servicecenterid);
-                            console.log(b.servicecenterid);
-                          }}
-                          onClick={getPackages}
+                        <button
+                          type="button"
+                          className="btn btn-sm btn-primary"
+                          onClick={() => getPackages(b.servicecenterid)}
                         >
                           View Packages
-                        </Link>
+                        </button>
                       </td>
                     </tr>
                   );
@@ -279,13 +307,14 @@ export default function Booking() {
                     {/* <th>Facilities</th> */}
                     <td value={p.servicecenterid}>
                       <ul>
-                        {p.facilities.map((f, index) => {
-                          return (
-                            <li style={{ textAlign: "left" }} key={index}>
-                              {f.facilityname}
-                            </li>
-                          );
-                        })}
+                        {Array.isArray(p.facilities) &&
+                          p.facilities.map((f, index) => {
+                            return (
+                              <li style={{ textAlign: "left" }} key={index}>
+                                {f.facilityname}
+                              </li>
+                            );
+                          })}
                       </ul>
                     </td>
                   </tr>

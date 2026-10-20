@@ -19,7 +19,10 @@ export default function ServRegistration() {
     pincode: { value: "", error: "", valid: false, touched: false },
     userid: { value: "", error: "", valid: false, touched: false },
     password: { value: "", error: "", valid: false, touched: false },
+    cpassword: { value: "", error: "", valid: false, touched: false },
   };
+
+
 
   // Merge instead of replace. The old reducer stored the raw string, which
   // threw away `error`/`valid`/`touched` and left the input reading
@@ -87,6 +90,17 @@ export default function ServRegistration() {
           valid = true;
         }
         break;
+
+      case "cpassword":
+        if (val !== get(info.password)) {
+          error = "Passwords do not match";
+          valid = false;
+        } else {
+          error = "";
+          valid = true;
+        }
+        break;
+
 
       // The cases below are the names this form actually submits. They were
       // missing, so those fields always reported valid=false and the submit
@@ -319,24 +333,33 @@ export default function ServRegistration() {
   };
 
   const getAreas = (id) => {
+    if (!id || id === "Select One" || Number(id) <= 0) {
+      setAllarea([]);
+      return;
+    }
     fetch(`${API}/getAreaByCityId?id=` + id)
-      .then((resp) => resp.json())
-      .then((a) => setAllarea(a));
+      .then((resp) => (resp.ok ? resp.json() : []))
+      .then((a) => setAllarea(Array.isArray(a) ? a : []))
+      .catch(() => setAllarea([]));
   };
 
   useEffect(() => {
     fetch(`${API}/getBrands`)
-      .then((resp) => resp.json())
-      .then((c) => setAllbrands(c));
+      .then((resp) => (resp.ok ? resp.json() : []))
+      .then((c) => setAllbrands(Array.isArray(c) ? c : []))
+      .catch(() => setAllbrands([]));
 
     fetch(`${API}/getCities`)
-      .then((resp) => resp.json())
-      .then((c) => setAllcities(c));
+      .then((resp) => (resp.ok ? resp.json() : []))
+      .then((c) => setAllcities(Array.isArray(c) ? c : []))
+      .catch(() => setAllcities([]));
 
     fetch(`${API}/getQuestions`)
-      .then((resp) => resp.json())
-      .then((q) => setAllques(q));
+      .then((resp) => (resp.ok ? resp.json() : []))
+      .then((q) => setAllques(Array.isArray(q) ? q : []))
+      .catch(() => setAllques([]));
   }, []);
+
 
   return (
     <div style={{ backgroundColor: "white" }}>
@@ -741,35 +764,36 @@ export default function ServRegistration() {
               </tr>
               <tr className="form-group">
                 <td>
-                  <label htmlFor="password">Re-enter Password:</label>
+                  <label htmlFor="cpassword">Re-enter Password:</label>
                 </td>
                 <td>
                   <input
                     type="password"
                     className="form-control"
-                    id="password"
+                    id="cpassword"
                     placeholder="Re-enter password"
-                    name="password"
-                    value={info.password.value}
+                    name="cpassword"
+                    value={info.cpassword?.value || ""}
                     onChange={(e) => {
-                      validate("password", e.target.value);
+                      validate("cpassword", e.target.value);
                     }}
                   />
 
                   <p
-                    id="emailHelp"
+                    id="cpasswordHelp"
                     className="form-text"
                     style={{
                       display:
-                        !info.password.valid && info.password.touched
+                        !info.cpassword?.valid && info.cpassword?.touched
                           ? "block"
                           : "none",
                     }}
                   >
-                    {info.password.error}
+                    {info.cpassword?.error}
                   </p>
                 </td>
               </tr>
+
               <tr className="form-group">
                 <td style={{ textAlign: "right" }}>
                   <hr />

@@ -13,19 +13,38 @@ export default function Rating() {
   const [comment, setComment] = useState("");
   const [selectedsc, setSelectedsc] = useState("");
   const [centers, setCenters] = useState([]);
+  const [loadingCenters, setLoadingCenters] = useState(true);
   const [banner, setBanner] = useState(null);
   const [sending, setSending] = useState(false);
   const navigate = useNavigate();
 
-  const custid = localStorage.getItem("custid");
-
   useEffect(() => {
+    // Ensure custid is stored in localStorage
+    const cid = localStorage.getItem("custid");
+    const loginid = localStorage.getItem("loginid") || localStorage.getItem("userid");
+    if (!cid && loginid) {
+      fetch(`${API}/getCustomerByLoginId?loginid=${loginid}`)
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data) => {
+          if (data && data.customerid) {
+            localStorage.setItem("custid", data.customerid);
+          }
+        })
+        .catch(() => {});
+    }
+
+    setLoadingCenters(true);
     fetch(API + "/allservicecenters")
-      .then((resp) => resp.json())
-      .then((list) => setCenters(Array.isArray(list) ? list : []))
-      .catch(() =>
-        setBanner({ kind: "danger", text: "Could not load service centres." })
-      );
+      .then((resp) => (resp.ok ? resp.json() : []))
+      .then((list) => {
+        setCenters(Array.isArray(list) ? list : []);
+        setLoadingCenters(false);
+      })
+      .catch(() => {
+        setCenters([]);
+        setLoadingCenters(false);
+        setBanner({ kind: "danger", text: "Could not load service centres." });
+      });
   }, []);
 
   const submit = async (e) => {
@@ -41,6 +60,32 @@ export default function Rating() {
       return;
     }
 
+    let activeCustId = Number(localStorage.getItem("custid"));
+    if (!activeCustId) {
+      // Try resolving once more
+      const loginid = localStorage.getItem("loginid") || localStorage.getItem("userid");
+      if (loginid) {
+        try {
+          const res = await fetch(`${API}/getCustomerByLoginId?loginid=${loginid}`);
+          if (res.ok) {
+            const data = await res.json();
+            if (data && data.customerid) {
+              activeCustId = Number(data.customerid);
+              localStorage.setItem("custid", data.customerid);
+            }
+          }
+        } catch (err) {}
+      }
+    }
+
+    if (!activeCustId) {
+      setBanner({
+        kind: "danger",
+        text: "Could not find your customer profile. Please log in again.",
+      });
+      return;
+    }
+
     setSending(true);
     try {
       const resp = await fetch(API + "/setRating", {
@@ -49,7 +94,7 @@ export default function Rating() {
         body: JSON.stringify({
           rating,
           comment,
-          customerid: custid,
+          customerid: activeCustId,
           servicecenterid: Number(selectedsc),
         }),
       });
@@ -62,9 +107,7 @@ export default function Rating() {
         body = null;
       }
 
-      // The endpoint used to answer 200 with an empty body even when it had
-      // saved nothing, so success is now judged on the payload too.
-      if (!resp.ok || !body || body.ratingid == null) {
+      if (!resp.ok || !body || (body.ratingid == null && body.rating == null)) {
         setBanner({
           kind: "danger",
           text: (body && body.message) || "Your feedback could not be saved.",
@@ -73,7 +116,7 @@ export default function Rating() {
       }
 
       setBanner({ kind: "success", text: "Thanks — your feedback has been sent." });
-      setTimeout(() => navigate("/customerhome"), 900);
+      setTimeout(() => navigate("/customerhome"), 1200);
     } catch (err) {
       setBanner({ kind: "danger", text: "Could not reach the server. Please try again." });
     } finally {
@@ -115,14 +158,26 @@ export default function Rating() {
                 className="form-select"
                 value={selectedsc}
                 onChange={(e) => setSelectedsc(e.target.value)}
+                disabled={loadingCenters}
               >
-                <option value="">Select a centre…</option>
-                {centers.map((s) => (
-                  <option key={s.servicecenterid} value={s.servicecenterid}>
-                    {s.scname}
-                    {s.area ? ` — ${s.area.areaname}` : ""}
-                  </option>
-                ))}
+                <option value="">
+                  {loadingCenters ? "Loading service centres…" : "Select a centre…"}
+                </option>
+                {centers.length > 0 ? (
+                  centers.map((s) => (
+                    <option key={s.servicecenterid} value={s.servicecenterid}>
+                      {s.scname}
+                      {s.brand?.bname ? ` (${s.brand.bname})` : ""}
+                      {s.area?.areaname ? ` — ${s.area.areaname}` : ""}
+                    </option>
+                  ))
+                ) : (
+                  !loadingCenters && (
+                    <option value="" disabled>
+                      No service centres registered yet
+                    </option>
+                  )
+                )}
               </select>
             </div>
 
